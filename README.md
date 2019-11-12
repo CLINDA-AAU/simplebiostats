@@ -1,2 +1,2 @@
-# simbios
+# simplebiostats
 Simple Biostatistics in Python
