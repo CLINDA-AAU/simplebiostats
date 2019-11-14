@@ -12,6 +12,7 @@ import scipy.stats as stats
 
 from statsmodels.formula.api import ols
 from statsmodels.stats import weightstats
+from statsmodels.stats.contingency_tables import mcnemar
 from statsmodels.stats.power import TTestIndPower
 
 
@@ -60,7 +61,7 @@ def check_normality(data_df, variable):
     It includes a boxplot, an histogram with a fitted normal distribution and a Q-Q plot
     """
     # We copy the data to avoid to change the original data unintentionally.
-    data_copy_df = data_df.copy()
+    data_copy_df = data_df.copy().dropna()
     fig, (ax_box, ax_hist, ax_qq) = plt.subplots(1, 3, figsize=[16, 6])
 
     describe_df = data_copy_df.describe()
@@ -301,6 +302,7 @@ def power_calculation_ttest(mean_diff, std, alpha=0.05, power=None, n_participan
 
 
 def plot_scatter_blandalt(input_df, var1, var2):
+    """Plot figures to validate the "same distribution" assumption."""
     data_df = input_df.sort_values(by=var1).copy()
 
     fig, (ax_scatter, ax_blandalt) = plt.subplots(1, 2, figsize=[16, 6])
@@ -372,6 +374,7 @@ def plot_scatter_blandalt(input_df, var1, var2):
 
 
 def ttest_rel(data_df, var1, var2):
+    """T-test for paired data looking at the diff."""
     data_copy_df = data_df
     data_copy_df['diff'] = data_copy_df[var2] - data_copy_df[var1]
 
@@ -385,9 +388,12 @@ def ttest_rel(data_df, var1, var2):
 
 
 class LinearRegression():
+    """To perform a linear regression."""
+
     model = None
 
     def __init__(self, data_df, resp_var, cont_var=None, cat_var=None, with_interactions=False):
+        """To initialize the LinearRegression object."""
         self.data_df = data_df
         self.resp_var = resp_var
         self.cont_var = cont_var
@@ -395,6 +401,7 @@ class LinearRegression():
         self.with_interactions = with_interactions
 
     def fit(self):
+        """Fit the linear regression and return an ANOVA analysis and the fitted parameters."""
         formula = self.resp_var + ' ~ '
 
         if self.cont_var is not None:
@@ -436,9 +443,14 @@ class LinearRegression():
         anova_results_df.loc['Total', 'Root mean of squares'] = math.sqrt(
             anova_results_df.loc['Total', 'Mean of squares'])
 
-        return {'ANOVA analysis': anova_results_df, 'Regression parameters': self.model.summary2().tables[1]}
+        markdown("#### ANOVA analysis")
+        display(anova_results_df)
+
+        markdown("#### Regression parameters")
+        display(self.model.summary2().tables[1])
 
     def check_model(self):
+        """Plot figures to validate the model."""
         if self.model is None:
             print('No model is defined, please run fit() on your regression first.')
             return
@@ -473,6 +485,7 @@ class LinearRegression():
         check_normality(resid_df, 'residuals')
 
     def plot_predictions(self, alpha=0.05):
+        """Plot the data vs the prediction using the continuous variable for the x axis."""
         fig, axis = plt.subplots(figsize=[16, 8])
 
         predictions_df = self.model.get_prediction().summary_frame(alpha)
@@ -524,9 +537,38 @@ class LinearRegression():
         plt.show()
 
     def predict(self, data_df, alpha=0.05):
+        """Compute the prediction for the data."""
         predictions_df = self.model.get_prediction(data_df).summary_frame(alpha=0.05)
 
         predictions_df.rename(columns={
             'mean': 'prediction', 'mean_se': 'se', 'mean_ci_lower': 'CI low', 'mean_ci_upper': 'CI high',
             'obs_ci_lower': 'PI low', 'obs_ci_upper': 'PI high'}, inplace=True)
         return data_df.join(predictions_df[['prediction', 'PI low', 'PI high']])
+
+
+def mcnemar_test(data_df, var1, var2):
+    """Test of difference between two paired binary variables."""
+    data_copy_df = data_df.copy()
+
+    # First we want to compute the contingency table
+    values_list = data_copy_df[var1].value_counts().index.tolist()
+
+    indexes = pd.MultiIndex.from_product([[var1], values_list])
+    columns = pd.MultiIndex.from_product([[var2], values_list])
+
+    contingency_table_df = pd.DataFrame(columns=columns, index=indexes)
+
+    for value1 in values_list:
+        for value2 in values_list:
+            contingency_table_df.loc[(var1, value1), (var2, value2)] = len(
+                data_copy_df.loc[(data_copy_df[var1] == value1) & (data_copy_df[var2] == value2)])
+
+    display(contingency_table_df)
+
+    # Then we use the McNemar test on it with the assumption that it's the same distribution
+    mcnemar_results = mcnemar(contingency_table_df.values)
+    mcnemar_results_df = pd.DataFrame(columns=['statistic', 'p_value'])
+
+    mcnemar_results_df.loc[var1 + ' vs ' + var2, 'statistic'] = mcnemar_results.statistic
+    mcnemar_results_df.loc[var1 + ' vs ' + var2, 'p_value'] = mcnemar_results.pvalue
+    display(mcnemar_results_df)
