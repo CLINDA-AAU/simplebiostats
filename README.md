@@ -10,10 +10,40 @@ For advanced users, we definitely advise them to use the full packages instead:
 * [Scipy.stats](https://docs.scipy.org/doc/scipy/reference/stats.html)
 
 ## How to use
-Download the folder and place it in your notebook folder.
+For Jupyter notebooks, Download the folder and place it in your notebooks folder.
+The folder structure should look like that:
+
+```
+project 
+│
+└───notebooks
+    │   notebook1.ipynb
+    |   notebook2.ipynb
+    |   ...
+    │
+    └───data
+    |   │   data.csv
+    |   │   ...
+    |
+    └───simplebiostats
+        │   simplebiostats.py
+        │   ...
+
+```
 
 Once in there, you can import the function by inserting `from simplebiostats.simplebiostats import <name of the function>`.
 
+A typical usecase will look like that
+
+```
+import pandas
+from simplebiostats.simplebiostats import check_normality
+
+data_df = pandas.read_csv('data/data.csv')
+
+check_normality(data_df, 'variable')
+```
+You can also import `.dta` or `.xslx` files with `pandas.read_stata(...)` and `pandas.read_excel(...)`.
 
 ## Functions
 In the following `data_df` is a pandas dataframe containing the data each variable being a column.
@@ -50,7 +80,7 @@ Non-parametric test of equality between two groups.
 To calculate either the power or the number of participants needed based on t-test, according to which variable between `power` and `n_participants` is set.
 
 ### plot_scatter_blandalt(input_df, var1, var2)
-Plot a scatter plot of `var1` vs `var2`. This is used for paired data to evaluate the "same distribution" assumotino.
+Plot a scatter plot of `var1` vs `var2` and a Bland-Altman plot for these variable (which is diff vs mean). This is used for paired data to evaluate the "same distribution" assumption.
 
 ### ttest_rel(data_df, var1, var2)
 T-test but for paired data.
