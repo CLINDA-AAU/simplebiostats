@@ -10,6 +10,7 @@ import pandas as pd
 
 import scipy.stats as stats
 
+import statsmodels.api as sm
 from statsmodels.formula.api import ols
 from statsmodels.stats import weightstats
 from statsmodels.stats.contingency_tables import mcnemar
@@ -111,7 +112,6 @@ def get_ci(data_df, variable, alpha=0.05):
     ci_df = pd.DataFrame(columns=['Mean', 'CI low', 'CI high'])
 
     mean = summary_df.loc[variable, 'mean']
-    # std = summary_df.loc[variable, 'std']
     se = summary_df.loc[variable, 'se']
 
     ci_low = stats.t.ppf(alpha / 2, df=len(data_copy_df.index) - 1, loc=mean, scale=se)
@@ -153,21 +153,22 @@ def get_pi(data_df, variable, alpha=0.05):
 
 def ttest_1samp(data_df, variable, hypothesis=0):
     """Exact T-test testing if the mean of the variable is equal to the hypothesis."""
-    ttest_results = stats.ttest_1samp(data_df[variable], hypothesis)
+    data_copy_df = data_df.dropna()
+    ttest_results = stats.ttest_1samp(data_copy_df[variable], hypothesis)
 
-    ttest_results_df = pd.DataFrame(columns=['hypothesis', 't_statistic', 'p_value'])
+    ttest_results_df = pd.DataFrame(columns=['hypothesis', 'statistic', 'p_value'])
     ttest_results_df.loc[variable, 'hypothesis'] = hypothesis
-    ttest_results_df.loc[variable, 't_statistic'] = ttest_results.statistic
+    ttest_results_df.loc[variable, 'statistic'] = ttest_results.statistic
     ttest_results_df.loc[variable, 'p_value'] = ttest_results.pvalue
 
-    display(get_ci(data_df, variable).join(ttest_results_df))
+    display(get_ci(data_copy_df, variable).join(ttest_results_df))
 
 
-def ttest_ind_by_group(data_df, group_variable, variable):
+def ttest_ind_by_group(data_df, group_var, variable):
     """T-test for 2 independant variables."""
-    groups = data_df[group_variable].value_counts()
-    data1_df = data_df.loc[data_df[group_variable] == groups.index[0]]
-    data2_df = data_df.loc[data_df[group_variable] == groups.index[1]]
+    groups = data_df[group_var].value_counts()
+    data1_df = data_df.loc[data_df[group_var] == groups.index[0]]
+    data2_df = data_df.loc[data_df[group_var] == groups.index[1]]
 
     compare_means = weightstats.CompareMeans.from_data(data1_df[variable], data2_df[variable])
 
@@ -191,18 +192,18 @@ def ttest_ind_by_group(data_df, group_variable, variable):
 
     display(ttest_ind_results_df)
 
-    ttest_results_df = pd.DataFrame(columns=['t_statistic', 'p_value', 'df'])
+    ttest_results_df = pd.DataFrame(columns=['statistic', 'p_value', 'df'])
     ttest_results_df.loc[variable, :] = compare_means.ttest_ind()
 
     display(ttest_results_df)
 
 
-def ftest_std_by_group(data_df, group_variable, variable):
+def ftest_std_by_group(data_df, group_var, variable):
     """F-test to check the assumption of same standard deviation from 2 independant variables."""
-    groups = data_df[group_variable].value_counts()
+    groups = data_df[group_var].value_counts()
 
-    summary1_df = summarize(data_df.loc[data_df[group_variable] == groups.index[0]])
-    summary2_df = summarize(data_df.loc[data_df[group_variable] == groups.index[1]])
+    summary1_df = summarize(data_df.loc[data_df[group_var] == groups.index[0]])
+    summary2_df = summarize(data_df.loc[data_df[group_var] == groups.index[1]])
 
     std1 = summary1_df.loc[variable, 'std']
     std2 = summary2_df.loc[variable, 'std']
@@ -222,24 +223,24 @@ def ftest_std_by_group(data_df, group_variable, variable):
 
     p_value = 2 * (1 - stats.f.cdf(f_score, dfn=n_large - 1, dfd=n_small - 1))
 
-    ztest_results_df = pd.DataFrame(columns=['f_statistic', 'p_value', 'df_num', 'df_den'])
+    ztest_results_df = pd.DataFrame(columns=['statistic', 'p_value', 'df_num', 'df_den'])
 
     ztest_results_df.loc[variable, :] = (f_score, p_value, n_large - 1, n_small - 1)
 
     return ztest_results_df
 
 
-def bootstrap_by_group(data_df, group_variable, variable, n_iter):
+def bootstrap_by_group(data_df, group_var, variable, n_iter):
     """Bootstrap analysis to estimate the distribution of the mean."""
     bootstrap_params_df = pd.DataFrame(columns=['diff']).astype('float64')
 
-    groups = data_df[group_variable].value_counts()
+    groups = data_df[group_var].value_counts()
 
     for i in range(0, n_iter):
         bootstraped_data_df = data_df.sample(frac=1, replace=True)
 
-        data1_df = bootstraped_data_df.loc[bootstraped_data_df[group_variable] == groups.index[0]]
-        data2_df = bootstraped_data_df.loc[bootstraped_data_df[group_variable] == groups.index[1]]
+        data1_df = bootstraped_data_df.loc[bootstraped_data_df[group_var] == groups.index[0]]
+        data2_df = bootstraped_data_df.loc[bootstraped_data_df[group_var] == groups.index[1]]
 
         describe1_df = data1_df.describe()
         describe2_df = data2_df.describe()
@@ -251,11 +252,11 @@ def bootstrap_by_group(data_df, group_variable, variable, n_iter):
     return get_pi(bootstrap_params_df, 'diff')
 
 
-def ranksums_by_group(data_df, group_variable, variable):
+def ranksums_by_group(data_df, group_var, variable):
     """T-test for 2 independant variables."""
-    groups = data_df[group_variable].value_counts()
-    data1_df = data_df.loc[data_df[group_variable] == groups.index[0]]
-    data2_df = data_df.loc[data_df[group_variable] == groups.index[1]]
+    groups = data_df[group_var].value_counts()
+    data1_df = data_df.loc[data_df[group_var] == groups.index[0]]
+    data2_df = data_df.loc[data_df[group_var] == groups.index[1]]
 
     ci_df = pd.DataFrame(columns=['Obs', 'Mean', 'CI low', 'CI high'])
 
@@ -373,7 +374,7 @@ def plot_scatter_blandalt(input_df, var1, var2):
     plt.show()
 
 
-def ttest_rel(data_df, var1, var2):
+def ttest_paired(data_df, var1, var2):
     """T-test for paired data looking at the diff."""
     data_copy_df = data_df
     data_copy_df['diff'] = data_copy_df[var2] - data_copy_df[var1]
@@ -381,10 +382,50 @@ def ttest_rel(data_df, var1, var2):
     test_results = stats.ttest_rel(data_df[var1], data_df[var2])
 
     ci_df = get_ci(data_df, 'diff')
-    ci_df.loc['diff', 't-statistic'] = test_results.statistic
+    ci_df.loc['diff', 'statistic'] = test_results.statistic
     ci_df.loc['diff', 'p_value'] = test_results.pvalue
 
     display(ci_df)
+
+
+def anova_by_group(data_df, resp_var, group_var):
+    """One way anova."""
+    model = ols(resp_var + ' ~ ' + group_var, data=data_df).fit()
+
+    anova_df = sm.stats.anova_lm(model, typ=2)
+    anova_df['mean_sq'] = anova_df['sum_sq'] / anova_df['df']
+
+    args = []
+    describe_df = pd.DataFrame()
+
+    for group in data_df[group_var].unique():
+        grouped_data_df = data_df.loc[data_df[group_var] == group]
+        group_describe_df = grouped_data_df.describe().T.rename({resp_var: group})
+        describe_df = pd.concat([describe_df, group_describe_df.loc[group_describe_df.index == group]])
+
+        args.append(grouped_data_df[resp_var])
+
+    markdown('#### Groups description')
+    display(describe_df)
+
+    markdown('#### ANOVA')
+    display(anova_df[['sum_sq', 'df', 'mean_sq', 'F', 'PR(>F)']].replace({np.NaN: ''}))
+
+    markdown('#### Bartlett\'s test of same variance')
+    display(stats.bartlett(*args))
+
+
+def kruskal_by_group(data_df, resp_var, group_var):
+    """Kruskal-Wallis-test of 'same distribution'."""
+    data_copy_df = data_df
+
+    args = []
+
+    for group in data_copy_df[group_var].unique():
+        grouped_data_df = data_copy_df.loc[data_copy_df[group_var] == group]
+        args.append(grouped_data_df[resp_var])
+
+    display(stats.kruskal(*args))
 
 
 class LinearRegression():
@@ -420,31 +461,11 @@ class LinearRegression():
 
         self.model = ols(formula, data=self.data_df).fit()
 
-        measures_df = pd.concat([
-            self.model.summary2().tables[0][[0, 1]].rename(columns={0: 'measure', 1: 'value'}),
-            self.model.summary2().tables[0][[2, 3]].rename(columns={2: 'measure', 3: 'value'})])
-        measures_df['measure'] = measures_df['measure'].str.replace(':', '')
-        measures_df = measures_df.set_index('measure')
+        anova_df = sm.stats.anova_lm(self.model, typ=2)
+        anova_df['mean_sq'] = anova_df['sum_sq'] / anova_df['df']
 
-        anova_results_df = pd.DataFrame(columns=['Sum of squares', 'Df', 'Mean of squares', 'Root mean of squares'])
-        anova_results_df.loc['Model', 'Df'] = int(measures_df.loc['Df Model', 'value'])
-        anova_results_df.loc['Residuals', 'Df'] = int(measures_df.loc['Df Residuals', 'value'])
-        anova_results_df.loc['Model', 'Sum of squares'] = float(measures_df.loc['Scale', 'value'])
-        anova_results_df.loc['Residuals', 'Sum of squares'] = float(measures_df.loc['R-squared', 'value'])
-        anova_results_df.loc['Model', 'Mean of squares'] = \
-            anova_results_df.loc['Model', 'Sum of squares'] / anova_results_df.loc['Model', 'Df']
-        anova_results_df.loc['Residuals', 'Mean of squares'] = \
-            anova_results_df.loc['Residuals', 'Sum of squares'] / anova_results_df.loc['Residuals', 'Df']
-        anova_results_df.loc['Model', 'Root mean of squares'] = math.sqrt(
-            anova_results_df.loc['Model', 'Mean of squares'])
-        anova_results_df.loc['Residuals', 'Root mean of squares'] = math.sqrt(
-            anova_results_df.loc['Residuals', 'Mean of squares'])
-        anova_results_df.loc['Total'] = anova_results_df.sum()
-        anova_results_df.loc['Total', 'Root mean of squares'] = math.sqrt(
-            anova_results_df.loc['Total', 'Mean of squares'])
-
-        markdown("#### ANOVA analysis")
-        display(anova_results_df)
+        markdown("#### ANOVA")
+        display(anova_df.replace({np.NaN: ''}))
 
         markdown("#### Regression parameters")
         display(self.model.summary2().tables[1])

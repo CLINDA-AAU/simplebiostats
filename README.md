@@ -82,8 +82,14 @@ To calculate either the power or the number of participants needed based on t-te
 ### plot_scatter_blandalt(input_df, var1, var2)
 Plot a scatter plot of `var1` vs `var2` and a Bland-Altman plot for these variable (which is diff vs mean). This is used for paired data to evaluate the "same distribution" assumption.
 
-### ttest_rel(data_df, var1, var2)
+### ttest_paired(data_df, var1, var2)
 T-test but for paired data.
+
+### anova_by_group(data_df, resp_var, group_var)
+ANalysis Of VAriance (ANOVA) in the case of multiple means between groups. It includes a Bartlett's test of "same distribution".
+
+### kruskal_by_group(data_df, resp_var, group_var):
+Kruskal-Wallis test of "same distribution". Same idea as the Bartlett's test but non-parametric. 
 
 ### LinearRegression(data_df, resp_var, cont_var=None, cat_var=None, with_interactions=False)
 To perform a linear regression. You need first to create the object before you can use on it the method below. It's thought to be used in very simple case where there is a continuous variable (`cont_var`) and a categorical one(`cat_var`). `resp_var` is the response variable (or the outcome). The `with_interactions` flag tells if you want to include the interaction between the 2 variables or not.
